@@ -83,7 +83,8 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
 
     dtrain_dict = {}
     for key in indptr.keys():
-        csr = csr_matrix((data[key], indices[key], indptr[key]))
+        csr = csr_matrix((data[key], indices[key], indptr[key]),
+                         shape=(len(row_id[key]), mall_shop_hashmap.GetShopNumInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key])
     return dtrain_dict, row_id
 
@@ -106,6 +107,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     # param['nthread'] = 2
     result = {}
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
+    LOGGER.info(dtrain_dict.keys())
     for key in dtrain_dict.keys():
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
