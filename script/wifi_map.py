@@ -21,7 +21,7 @@ class WifiMap(object):
         self.wifi_num = len(self.wifi_map)
 
 
-    def _init(self, wifi_dir):
+    def __init(self, wifi_dir):
         '''
         load the 'wifi' column of
         user_shop_behavior.csv & evaluation_public.csv
