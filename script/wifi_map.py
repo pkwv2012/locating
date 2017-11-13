@@ -4,7 +4,7 @@ import csv
 import os
 import pickle
 
-from .config import Config
+from config import Config
 
 class WifiMap(object):
     def __init__(self, wifi_dir):
@@ -14,7 +14,7 @@ class WifiMap(object):
             f = open(self.pickle_file, 'rb')
             self.wifi_map = pickle.load(f)
         else:
-            self.wifi_map = self._init(wifi_dir);
+            self.wifi_map = self.__init(wifi_dir);
 
             with open(self.pickle_file, 'wb') as fout:
                 pickle.dump(self.wifi_map, fout)
@@ -66,11 +66,11 @@ class WifiMap(object):
                         wifi_num += 1
         return wifi_map
 
-    def GetIndex(self, wifi_id):
+    def GetIndex(self, bssid):
         '''
         hash wifi_id to int index
         :param wifi_id: type str; like 'b_6396480'
         :return: int
         '''
-        assert wifi_id in self.wifi_map
-        return self.wifi_map[wifi_id]
+        assert bssid in self.wifi_map
+        return self.wifi_map[bssid]

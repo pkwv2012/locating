@@ -5,8 +5,8 @@ import pickle
 import os
 
 from collections import defaultdict
-from .config import Config
-from .logger import LOGGER
+from config import Config
+from logger import LOGGER
 
 class MallShopMap(object):
     def __init__(self, data_dir):
@@ -18,7 +18,7 @@ class MallShopMap(object):
             'mall_shop_info.pickle'
         )
         if os.path.isfile(pickle_file):
-            with open(pickle_file) as fin:
+            with open(pickle_file, 'rb') as fin:
                 self.mall_list = pickle.load(fin)
                 self.mall_shop_map = pickle.load(fin)
                 self.shop_mall_map = pickle.load(fin)
@@ -82,3 +82,11 @@ class MallShopMap(object):
         '''
         assert shop_id in self.shop_mall_map
         return self.shop_mall_map[shop_id]
+
+    def GetShopNumInMall(self, mall_id):
+        '''
+        return # of shops in the mall
+        :param mall_id:
+        :return:
+        '''
+        return len(self.mall_shop_map[mall_id])
