@@ -13,7 +13,7 @@ from scipy.sparse import csr_matrix
 from config import Config
 from logger import LOGGER
 from mall_shop_map import MallShopMap
-from wifi_map import WifiMap
+from mall_wifi_map import MallWifiMap
 
 def LoadFeatures(file_path):
     assert os.path.isfile(file_path)
@@ -66,7 +66,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
                 items = wifi.split('|')
                 assert len(items) == 3
                 bssid, signal, state = items[0], int(items[1]), bool(items[2])
-                index = wifi_hashmap.GetIndex(bssid)
+                index = wifi_hashmap.GetIndex(mall_id, bssid)
                 signal = -signal if state else signal
                 data[mall_id].append(signal), indices[mall_id].append(col_num + index)
         for key in indptr.keys():
@@ -84,7 +84,7 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
     dtrain_dict = {}
     for key in indptr.keys():
         csr = csr_matrix((data[key], indices[key], indptr[key]),
-                         shape=(len(row_id[key]), mall_shop_hashmap.GetShopNumInMall(key) + 2))
+                         shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key])
     return dtrain_dict, row_id
 
@@ -136,7 +136,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
 
 if __name__ == '__main__':
     data_dir = Config.data_dir
-    wifi_hashmap = WifiMap(data_dir)
+    wifi_hashmap = MallWifiMap(data_dir)
     mall_shop_hashmap = MallShopMap(data_dir)
     data = defaultdict(list)
     Train(data_dir, wifi_hashmap, mall_shop_hashmap)
