@@ -4,6 +4,8 @@ import csv
 import os
 import pickle
 
+from .config import Config
+
 class WifiMap(object):
     def __init__(self, wifi_dir):
         self.pickle_file = os.path.join(wifi_dir, 'wifi_map.pickle')
@@ -31,7 +33,8 @@ class WifiMap(object):
         '''
         user_shop_file = os.path.join(
             wifi_dir,
-            'ccf_first_round_user_shop_behavior.csv'
+            # 'ccf_first_round_user_shop_behavior.csv'
+            Config.user_shop_filename
         )
         wifi_map = {}
         wifi_num = 0
@@ -48,7 +51,8 @@ class WifiMap(object):
 
         evaluation_file = os.path.join(
             wifi_dir,
-            'evaluation_public.csv'
+            # 'evaluation_public.csv'
+            Config.evaluation_filename
         )
         with open(evaluation_file) as fin:
             reader = csv.DictReader(fin)
