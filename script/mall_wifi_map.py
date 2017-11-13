@@ -61,10 +61,11 @@ class MallWifiMap(object):
         '''
         hash wifi_id to int index
         :param wifi_id: type str; like 'b_6396480'
-        :return: int
+        :return: int / -1 if bssid not in wifi_map
         '''
-        assert bssid in self.wifi_map[mall_id]
-        return self.wifi_map[mall_id][bssid]
+        if bssid in self.wifi_map[mall_id]:
+            return self.wifi_map[mall_id][bssid]
+        return -1
 
     def GetWifiInMall(self, mall_id):
         '''

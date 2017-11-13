@@ -67,6 +67,8 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
                 assert len(items) == 3
                 bssid, signal, state = items[0], int(items[1]), bool(items[2])
                 index = wifi_hashmap.GetIndex(mall_id, bssid)
+                if index < 0:
+                    continue;
                 signal = -signal if state else signal
                 data[mall_id].append(signal), indices[mall_id].append(col_num + index)
         for key in indptr.keys():
