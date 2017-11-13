@@ -110,14 +110,14 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         error_list = xgb.cv(param, dtrain_dict[key],
-                     num_boost_round=2,
+                     num_boost_round=20,
                      nfold=4,
                      early_stopping_rounds=early_stop_round
                      )
         LOGGER.info(key)
         LOGGER.info(error_list)
         booster = xgb.train(param, dtrain_dict[key],
-                            num_boost_round=len(error_list) - early_stop_round,
+                            num_boost_round=len(error_list),
                             early_stopping_rounds=early_stop_round)
         model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
         booster.save_model(model_path)
