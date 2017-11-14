@@ -115,7 +115,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         error_list = xgb.cv(param, dtrain_dict[key],
-                     num_boost_round=20,
+                     num_boost_round=40,
                      nfold=4,
                      early_stopping_rounds=early_stop_round
                      )
@@ -135,7 +135,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         fout.write('row_id,shop_id\n')
         for key in dtest_dict.keys():
             for i in range(len(row_id[key])):
-                fout.write('{},{}\n'.format(row_id[key][i], result[key][i]))
+                fout.write('{},{}\n'.format(row_id[key][i], int(result[key][i])))
 
 
 if __name__ == '__main__':
