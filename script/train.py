@@ -53,9 +53,13 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
                 shop_id = line['shop_id']
                 mall_id = mall_shop_hashmap.GetMallId(shop_id)
                 shop_index = mall_shop_hashmap.GetShopIndex(mall_id, shop_id)
+
+            # test data has row_id, but train date doesn't
+            row_num = line['row_id'] if 'row_id' in line else row_count
+
             lng, lat = float(line['longitude']), float(line['latitude'])
             indptr[mall_id].append(len(indices[mall_id]))
-            row_id[mall_id].append(row_count)
+            row_id[mall_id].append(row_num)
             label[mall_id].append(shop_index)
             col_num = 0
             data[mall_id].append(lng), indices[mall_id].append(col_num)
@@ -114,18 +118,23 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     for key in dtrain_dict.keys():
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
-        error_list = xgb.cv(param, dtrain_dict[key],
-                     num_boost_round=60,
-                     nfold=4,
-                     early_stopping_rounds=early_stop_round
-                     )
-        LOGGER.info(key)
-        LOGGER.info(error_list)
-        booster = xgb.train(param, dtrain_dict[key],
-                            num_boost_round=len(error_list))
-        model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
-        booster.save_model(model_path)
-        LOGGER.info(key)
+        if Config.is_train:
+            error_list = xgb.cv(param, dtrain_dict[key],
+                         num_boost_round=60,
+                         nfold=4,
+                         early_stopping_rounds=early_stop_round
+                         )
+            booster = xgb.train(param, dtrain_dict[key],
+                                num_boost_round=len(error_list))
+            model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
+            booster.save_model(model_path)
+            LOGGER.info(key)
+            LOGGER.info(error_list)
+        else:
+            model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, Config.selected_model_suffix))
+            assert os.path.isfile(model_path)
+            booster = xgb.Booster(model_file=model_path);
+
         prediction = booster.predict(dtest_dict[key])
         result[key] = []
         for p in prediction:
