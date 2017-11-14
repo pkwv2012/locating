@@ -115,7 +115,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         error_list = xgb.cv(param, dtrain_dict[key],
-                     num_boost_round=20,
+                     num_boost_round=40,
                      nfold=4,
                      early_stopping_rounds=early_stop_round
                      )
@@ -126,10 +126,13 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
         booster.save_model(model_path)
         LOGGER.info(key)
-        result[key] = booster.predict(dtest_dict[key])
+        prediction = booster.predict(dtest_dict[key])
+        result[key] = []
+        for p in prediction:
+            result[key].append(mall_shop_hashmap.GetShopId(key, int(p)))
     result_filepath = os.path.join(
         data_dir,
-        'predict_{}'.format(time_suffix))
+        'predict_{}.csv'.format(time_suffix))
 
     with open(result_filepath, 'w') as fout:
         fout.write('row_id,shop_id\n')
