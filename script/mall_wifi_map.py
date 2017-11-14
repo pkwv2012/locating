@@ -40,7 +40,6 @@ class MallWifiMap(object):
             Config.user_shop_filename
         )
         wifi_map = defaultdict(dict)
-        wifi_num = 0
         with open(user_shop_file, 'r') as fin:
             reader = csv.DictReader(fin)
             for line in reader:
@@ -51,8 +50,8 @@ class MallWifiMap(object):
                     assert len(item) == 3;
                     wifi_id = item[0]
                     if wifi_id not in wifi_map[mall_id]:
-                        wifi_map[mall_id][wifi_id] = wifi_num
-                        wifi_num += 1
+                        l = len(wifi_map[mall_id])
+                        wifi_map[mall_id][wifi_id] = l
 
 
         return wifi_map
@@ -74,4 +73,4 @@ class MallWifiMap(object):
         :return: int
         '''
         assert mall_id in self.wifi_map
-        return self.wifi_map[mall_id]
+        return len(self.wifi_map[mall_id])

@@ -88,6 +88,7 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
         csr = csr_matrix((data[key], indices[key], indptr[key]),
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key])
+        LOGGER.info(key, csr.shape)
     return dtrain_dict, row_id
 
 
@@ -124,6 +125,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
                             num_boost_round=len(error_list))
         model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
         booster.save_model(model_path)
+        LOGGER.info(key)
         result[key] = booster.predict(dtest_dict[key])
     result_filepath = os.path.join(
         data_dir,
