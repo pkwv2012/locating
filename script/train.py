@@ -126,7 +126,10 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
         booster.save_model(model_path)
         LOGGER.info(key)
-        result[key] = booster.predict(dtest_dict[key])
+        prediction = booster.predict(dtest_dict[key])
+        result[key] = []
+        for p in prediction:
+            result[key].append(mall_shop_hashmap.GetShopId(key, int(p)))
     result_filepath = os.path.join(
         data_dir,
         'predict_{}'.format(time_suffix))
@@ -135,7 +138,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         fout.write('row_id,shop_id\n')
         for key in dtest_dict.keys():
             for i in range(len(row_id[key])):
-                fout.write('{},{}\n'.format(row_id[key][i], int(result[key][i])))
+                fout.write('{},{}\n'.format(row_id[key][i], result[key][i]))
 
 
 if __name__ == '__main__':
