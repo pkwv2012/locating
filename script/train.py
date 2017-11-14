@@ -92,7 +92,7 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
         csr = csr_matrix((data[key], indices[key], indptr[key]),
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key])
-        LOGGER.info(key, csr.shape)
+        LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
     return dtrain_dict, row_id
 
 
