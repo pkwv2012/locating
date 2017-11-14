@@ -28,6 +28,8 @@ class MallShopMap(object):
                 pickle.dump(self.mall_list, fout)
                 pickle.dump(self.mall_shop_map, fout)
                 pickle.dump(self.shop_mall_map, fout)
+        status = [(key, len(self.mall_shop_map[key])) for key in self.mall_shop_map.keys()]
+        LOGGER.info('MallShop={}'.format(status))
 
     def __init(self, data_dir):
         '''

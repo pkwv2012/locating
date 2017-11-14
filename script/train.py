@@ -105,7 +105,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['objective'] = 'multi:softmax'
     # scale weight of positive examples
     param['eta'] = 0.1
-    param['max_depth'] = 6
+    param['max_depth'] = 4
     param['silent'] = 1
     # param['nthread'] = 2
     result = {}
@@ -115,7 +115,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         error_list = xgb.cv(param, dtrain_dict[key],
-                     num_boost_round=40,
+                     num_boost_round=60,
                      nfold=4,
                      early_stopping_rounds=early_stop_round
                      )
@@ -142,10 +142,12 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
 
 
 if __name__ == '__main__':
+    LOGGER.info('start_time={}'.format(datetime.now()))
     data_dir = Config.data_dir
     wifi_hashmap = MallWifiMap(data_dir)
     mall_shop_hashmap = MallShopMap(data_dir)
     data = defaultdict(list)
     Train(data_dir, wifi_hashmap, mall_shop_hashmap)
+    LOGGER.info('end_time={}'.format(datetime.now()))
 
 
