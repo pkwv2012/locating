@@ -34,24 +34,7 @@ def SaveFeatrues(file_path, data, indices, indptr, row_id, label):
         pickle.dump(row_id, fout)
         pickle.dump(label, fout)
 
-def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat):
-    with open(filepath, 'r') as fin:
-        reader = csv.DictReader(fin)
-        shop_user_dist_list = defaultdict(list)
-        for line in reader:
-            lng, lat = float(line['longitude']), float(line['latitude'])
-            shop_id = line['shop_id']
-            shop_user_dist_list[shop_id].append(
-                math.sqrt((lng - lng_lat[shop_id][0])**2 +
-                          (lat - lng_lat[shop_id][1])**2)
-            )
-        max_dist = defaultdict(float)
-        for shop_id in shop_user_dist_list:
-            shop_user_dist_list[shop_id].sort()
-            l = len(shop_user_dist_list[shop_id])
-            max_dist[shop_id] = shop_user_dist_list[shop_id][int(l * 0.9)] if l > 10 else \
-                shop_user_dist_list[shop_id][-1]
-
+def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist):
     with open(filepath, 'r') as fin:
         reader = csv.DictReader(fin)
         data = defaultdict(list)
@@ -76,10 +59,11 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat):
             row_num = line['row_id'] if 'row_id' in line else row_count
 
             lng, lat = float(line['longitude']), float(line['latitude'])
-            dist = math.sqrt((lng - lng_lat[shop_id])**2 + (lat - lng_lat[shop_id])**2)
             # filter (lng, lat) abnormal data
-            if dist > max_dist[shop_id]:
-                continue
+            if 'shop_id' in line:
+                dist = math.sqrt((lng - lng_lat[shop_id][0])**2 + (lat - lng_lat[shop_id][1])**2)
+                if dist > max_dist[shop_id]:
+                    continue
             indptr[mall_id].append(len(indices[mall_id]))
             row_id[mall_id].append(row_num)
             label[mall_id].append(shop_index)
@@ -102,7 +86,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat):
             indptr[key].append(len(indices[key]))
     return data, indices, indptr, row_id, label
 
-def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
+def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist):
     '''
     get features if having pickle file else processing raw data
     :param filepath:
@@ -114,7 +98,8 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
     if os.path.isfile(pickle_file):
         data, indices, indptr, row_id, label = LoadFeatures(pickle_file)
     else:
-        data, indices, indptr, row_id, label = ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap)
+        data, indices, indptr, row_id, label = ProcessFeatures(filepath, wifi_hashmap, 
+                mall_shop_hashmap, lng_lat, max_dist)
         SaveFeatrues(pickle_file, data, indices, indptr, row_id, label)
 
     dtrain_dict = {}
@@ -135,13 +120,34 @@ def GetShopLngLat(shop_info_filepath):
             lng_lat[shop_id] = (lng, lat)
         return lng_lat
 
+def GetShopMaxDist(shop_info_filepath, lng_lat):
+    with open(shop_info_filepath, 'r') as fin:
+        reader = csv.DictReader(fin)
+        shop_user_dist_list = defaultdict(list)
+        for line in reader:
+            lng, lat = float(line['longitude']), float(line['latitude'])
+            shop_id = line['shop_id']
+            shop_user_dist_list[shop_id].append(
+                math.sqrt((lng - lng_lat[shop_id][0])**2 +
+                          (lat - lng_lat[shop_id][1])**2)
+            )
+        max_dist = defaultdict(float)
+        for shop_id in shop_user_dist_list:
+            shop_user_dist_list[shop_id].sort()
+            l = len(shop_user_dist_list[shop_id])
+            max_dist[shop_id] = shop_user_dist_list[shop_id][int(l * 0.9)] if l > 10 else \
+                shop_user_dist_list[shop_id][-1]
+        return max_dist
+    
+
 def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     shop_info_file = os.path.join(data_dir, Config.shop_info_filename)
     lng_lat = GetShopLngLat(shop_info_file)
+    max_dist = GetShopMaxDist(shop_info_file, lng_lat)
     train_file = os.path.join(data_dir, Config.user_shop_filename)
-    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
     test_file = os.path.join(data_dir, Config.evaluation_filename)
-    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
     assert dtrain_dict.keys() == dtest_dict.keys()
 
     # setup parameters for xgboost
