@@ -111,6 +111,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['eta'] = 0.1
     param['max_depth'] = 4
     param['silent'] = 1
+    param['min_child_weight'] = 3
     # param['nthread'] = 2
     result = {}
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
@@ -120,7 +121,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         early_stop_round = 10
         if Config.is_train:
             error_list = xgb.cv(param, dtrain_dict[key],
-                         num_boost_round=60,
+                         num_boost_round=100,
                          nfold=4,
                          early_stopping_rounds=early_stop_round
                          )
