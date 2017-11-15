@@ -16,6 +16,8 @@ class Config(object):
     evaluation_filename = 'evaluation_public.csv'
 
     # train or predict
-    is_train = False
+    is_train = True
     # if predict
     selected_model_suffix = '2017_11_13_18_26'
+  
+    bad_accuracy_mall_list = ['m_7800']

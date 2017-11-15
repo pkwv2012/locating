@@ -62,10 +62,11 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
             row_id[mall_id].append(row_num)
             label[mall_id].append(shop_index)
             col_num = 0
-            data[mall_id].append(lng), indices[mall_id].append(col_num)
-            col_num += 1
-            data[mall_id].append(lat), indices[mall_id].append(col_num)
-            col_num += 1
+            if mall_id not in Config.bad_accuracy_mall_list:
+                data[mall_id].append(lng), indices[mall_id].append(col_num)
+                col_num += 1
+                data[mall_id].append(lat), indices[mall_id].append(col_num)
+                col_num += 1
             for wifi in line['wifi_infos'].split(';'):
                 items = wifi.split('|')
                 assert len(items) == 3
@@ -112,15 +113,17 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['max_depth'] = 4
     param['silent'] = 1
     # param['nthread'] = 2
-    result = {}
+    result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
     LOGGER.info(dtrain_dict.keys())
     for key in dtrain_dict.keys():
+        if key not in Config.bad_accuracy_mall_list:
+            continue
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         if Config.is_train:
             error_list = xgb.cv(param, dtrain_dict[key],
-                         num_boost_round=60,
+                         num_boost_round=200,
                          nfold=4,
                          early_stopping_rounds=early_stop_round
                          )
@@ -146,7 +149,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     with open(result_filepath, 'w') as fout:
         fout.write('row_id,shop_id\n')
         for key in dtest_dict.keys():
-            for i in range(len(row_id[key])):
+            for i in range(len(result[key])):
                 fout.write('{},{}\n'.format(row_id[key][i], result[key][i]))
 
 
