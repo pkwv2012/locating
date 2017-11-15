@@ -1,8 +1,9 @@
 # coding : utf-8
 
 import csv
-import pickle
+import math
 import os
+import pickle
 import sys
 import xgboost as xgb
 
@@ -33,7 +34,24 @@ def SaveFeatrues(file_path, data, indices, indptr, row_id, label):
         pickle.dump(row_id, fout)
         pickle.dump(label, fout)
 
-def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
+def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat):
+    with open(filepath, 'r') as fin:
+        reader = csv.DictReader(fin)
+        shop_user_dist_list = defaultdict(list)
+        for line in reader:
+            lng, lat = float(line['longitude']), float(line['latitude'])
+            shop_id = line['shop_id']
+            shop_user_dist_list[shop_id].append(
+                math.sqrt((lng - lng_lat[shop_id][0])**2 +
+                          (lat - lng_lat[shop_id][1])**2)
+            )
+        max_dist = defaultdict(float)
+        for shop_id in shop_user_dist_list:
+            shop_user_dist_list[shop_id].sort()
+            l = len(shop_user_dist_list[shop_id])
+            max_dist[shop_id] = shop_user_dist_list[shop_id][int(l * 0.9)] if l > 10 else \
+                shop_user_dist_list[shop_id][-1]
+
     with open(filepath, 'r') as fin:
         reader = csv.DictReader(fin)
         data = defaultdict(list)
@@ -58,6 +76,10 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
             row_num = line['row_id'] if 'row_id' in line else row_count
 
             lng, lat = float(line['longitude']), float(line['latitude'])
+            dist = math.sqrt((lng - lng_lat[shop_id])**2 + (lat - lng_lat[shop_id])**2)
+            # filter (lng, lat) abnormal data
+            if dist > max_dist[shop_id]:
+                continue
             indptr[mall_id].append(len(indices[mall_id]))
             row_id[mall_id].append(row_num)
             label[mall_id].append(shop_index)
@@ -81,6 +103,13 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
     return data, indices, indptr, row_id, label
 
 def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
+    '''
+    get features if having pickle file else processing raw data
+    :param filepath:
+    :param wifi_hashmap:
+    :param mall_shop_hashmap:
+    :return:
+    '''
     pickle_file = filepath + '.pickle'
     if os.path.isfile(pickle_file):
         data, indices, indptr, row_id, label = LoadFeatures(pickle_file)
@@ -96,12 +125,23 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap):
         LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
     return dtrain_dict, row_id
 
+def GetShopLngLat(shop_info_filepath):
+    with open(shop_info_filepath, 'r') as fin:
+        reader = csv.DictReader(fin)
+        lng_lat = {}
+        for line in reader:
+            shop_id = line['shop_id']
+            lng, lat = float(line['longitude']), float(line['latitude'])
+            lng_lat[shop_id] = (lng, lat)
+        return lng_lat
 
 def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
+    shop_info_file = os.path.join(data_dir, Config.shop_info_filename)
+    lng_lat = GetShopLngLat(shop_info_file)
     train_file = os.path.join(data_dir, Config.user_shop_filename)
-    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap)
+    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
     test_file = os.path.join(data_dir, Config.evaluation_filename)
-    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap)
+    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
     assert dtrain_dict.keys() == dtest_dict.keys()
 
     # setup parameters for xgboost
@@ -112,6 +152,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['eta'] = 0.1
     param['max_depth'] = 4
     param['silent'] = 1
+    param['min_child_weight'] = 3
     # param['nthread'] = 2
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
@@ -123,7 +164,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         early_stop_round = 10
         if Config.is_train:
             error_list = xgb.cv(param, dtrain_dict[key],
-                         num_boost_round=200,
+                         num_boost_round=100,
                          nfold=4,
                          early_stopping_rounds=early_stop_round
                          )
