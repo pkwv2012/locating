@@ -20,4 +20,4 @@ class Config(object):
     # if predict
     selected_model_suffix = '2017_11_13_18_26'
   
-    bad_accuracy_mall_list = ['m_7800']
+    bad_accuracy_mall_list = ['m_7800', 'm_4187', 'm_4079']

@@ -68,11 +68,10 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             row_id[mall_id].append(row_num)
             label[mall_id].append(shop_index)
             col_num = 0
-            if mall_id not in Config.bad_accuracy_mall_list:
-                data[mall_id].append(lng), indices[mall_id].append(col_num)
-                col_num += 1
-                data[mall_id].append(lat), indices[mall_id].append(col_num)
-                col_num += 1
+            data[mall_id].append(lng), indices[mall_id].append(col_num)
+            col_num += 1
+            data[mall_id].append(lat), indices[mall_id].append(col_num)
+            col_num += 1
             for wifi in line['wifi_infos'].split(';'):
                 items = wifi.split('|')
                 assert len(items) == 3
@@ -158,14 +157,14 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['eta'] = 0.1
     param['max_depth'] = 4
     param['silent'] = 1
-    param['min_child_weight'] = 3
+    param['min_child_weight'] = 4
     # param['nthread'] = 2
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
     LOGGER.info(dtrain_dict.keys())
     for key in dtrain_dict.keys():
-        if key not in Config.bad_accuracy_mall_list:
-            continue
+        # if key not in Config.bad_accuracy_mall_list:
+        #    continue
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         if Config.is_train:
