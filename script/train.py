@@ -159,16 +159,16 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
     lng_lat = GetShopLngLat(shop_info_file)
     train_file = os.path.join(data_dir, Config.train_filename)
     max_dist = GetShopMaxDist(train_file, lng_lat)
-    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
+    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist, model=model)
 
     validation_file = os.path.join(data_dir, Config.validation_filename)
-    dvalidation_dict, row_id = GetFeatures(validation_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+    dvalidation_dict, row_id = GetFeatures(validation_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     total_train_file = os.path.join(data_dir, Config.user_shop_filename)
-    total_train_dict, row_id = GetFeatures(total_train_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+    total_train_dict, row_id = GetFeatures(total_train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     test_file = os.path.join(data_dir, Config.evaluation_filename)
-    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     assert dtrain_dict.keys() == dtest_dict.keys()
 
@@ -177,6 +177,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
     LOGGER.info(param)
+    validation_correct = 0
+    validation_sum = 0
     for key in dtrain_dict.keys():
         # if key not in Config.bad_accuracy_mall_list:
         #    continue
@@ -193,9 +195,12 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             booster = gbm.train(param, dtrain_dict[key],
                                 num_boost_round=len(error_list))
             validation_predict = booster.predict(dvalidation_dict[key])
-            accuracy = sum([lhs == rhs for lhs, rhs in
-                            zip(dvalidation_dict[key].get_label(), validation_predict)]) / len(validation_predict)
+            correct_num = sum([lhs == rhs for lhs, rhs in
+                            zip(dvalidation_dict[key].get_label(), validation_predict)])
+            accuracy = correct_num / len(validation_predict)
             LOGGER.info('mall_id={}||accuracy={}'.format(key, accuracy))
+            validation_correct += correct_num
+            validation_sum += len(validation_predict)
 
             booster = gbm.train(param, total_train_dict[key],
                                 num_boost_round=len(error_list))
@@ -210,6 +215,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
         result[key] = []
         for p in prediction:
             result[key].append(mall_shop_hashmap.GetShopId(key, int(p)))
+    LOGGER.info('model={}||accuracy={}'.format(model, validation_correct / validation_sum))
     result_filepath = os.path.join(
         data_dir,
         'predict_{}.csv'.format(time_suffix))
@@ -222,9 +228,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
 
 def SelectModel(data_dir, wifi_hashmap, mall_shop_hashmap):
 
-    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
-
     Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.LGB_param, "LightGBM")
+    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
 
 
 if __name__ == '__main__':
