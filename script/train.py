@@ -1,6 +1,7 @@
 # coding : utf-8
 
 import csv
+import lightgbm as lgb
 import math
 import os
 import pickle
@@ -86,7 +87,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             indptr[key].append(len(indices[key]))
     return data, indices, indptr, row_id, label
 
-def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=None):
+def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=None, model='XGBoost'):
     '''
     get features if having pickle file else processing raw data
     :param filepath:
@@ -106,7 +107,8 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=Non
     for key in indptr.keys():
         csr = csr_matrix((data[key], indices[key], indptr[key]),
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
-        dtrain_dict[key] = xgb.DMatrix(csr, label=label[key])
+        dtrain_dict[key] = xgb.DMatrix(csr, label=label[key]) if model == 'XGBoost' else \
+            lgb.Dataset(csr, label=label[key])
         LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
     return dtrain_dict, row_id
 
@@ -170,7 +172,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['max_depth'] = 3
     param['silent'] = 1
     param['min_child_weight'] = 3
-    param['subsample'] = 0.6
+    # subsample make accuracy decrese 0.07
+    # param['subsample'] = 0.6
     param['lambda'] = 0.5
     # param['nthread'] = 2
     result = defaultdict(list)
@@ -187,12 +190,19 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
                          nfold=3,  # some shop appear less
                          early_stopping_rounds=early_stop_round
                          )
+            LOGGER.info(key)
+            LOGGER.info(error_list)
             booster = xgb.train(param, dtrain_dict[key],
+                                num_boost_round=len(error_list))
+            validation_predict = booster.predict(dvalidation_dict[key])
+            accuracy = sum([lhs == rhs for lhs, rhs in
+                            zip(dvalidation_dict[key].get_label(), validation_predict)]) / len(validation_predict)
+            LOGGER.info('mall_id={}||accuracy={}'.format(key, accuracy))
+
+            booster = xgb.train(param, total_train_dict[key],
                                 num_boost_round=len(error_list))
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
             booster.save_model(model_path)
-            LOGGER.info(key)
-            LOGGER.info(error_list)
         else:
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, Config.selected_model_suffix))
             assert os.path.isfile(model_path)

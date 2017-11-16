@@ -5,7 +5,7 @@ import random
 
 from config import Config
 
-def SplitFile(data_file, train_file, validation_file, rate=0.85):
+def SplitFile(data_file, train_file, validation_file, rate=0.8):
     with open(data_file, 'r') as fin:
         header = fin.readline()
         data_holder = fin.readlines()
