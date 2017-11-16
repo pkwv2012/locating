@@ -64,7 +64,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             if 'shop_id' in line:
                 shop_id = line['shop_id']
                 dist = math.sqrt((lng - lng_lat[shop_id][0])**2 + (lat - lng_lat[shop_id][1])**2)
-                if max_dist and dist > max_dist[shop_id]:
+                if max_dist is not None and dist > max_dist[shop_id]:
                     continue
             indptr[mall_id].append(len(indices[mall_id]))
             row_id[mall_id].append(row_num)
@@ -135,7 +135,7 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
             )
         max_dist = defaultdict(float)
         for shop_id in shop_user_dist_list:
-            LOGGER.info('shop_size={}'.format(len(shop_user_dist_list)))
+            LOGGER.info('shop_size={}'.format(len(shop_user_dist_list[shop_id])))
             shop_user_dist_list[shop_id].sort()
             l = len(shop_user_dist_list[shop_id])
             if l > 10:
@@ -157,8 +157,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
     '''
     shop_info_file = os.path.join(data_dir, Config.shop_info_filename)
     lng_lat = GetShopLngLat(shop_info_file)
-    max_dist = GetShopMaxDist(shop_info_file, lng_lat)
     train_file = os.path.join(data_dir, Config.train_filename)
+    max_dist = GetShopMaxDist(train_file, lng_lat)
     dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
 
     validation_file = os.path.join(data_dir, Config.validation_filename)
