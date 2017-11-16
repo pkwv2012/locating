@@ -61,6 +61,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             lng, lat = float(line['longitude']), float(line['latitude'])
             # filter (lng, lat) abnormal data
             if 'shop_id' in line:
+                shop_id = line['shop_id']
                 dist = math.sqrt((lng - lng_lat[shop_id][0])**2 + (lat - lng_lat[shop_id][1])**2)
                 if max_dist and dist > max_dist[shop_id]:
                     continue
@@ -132,6 +133,7 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
             )
         max_dist = defaultdict(float)
         for shop_id in shop_user_dist_list:
+            LOGGER.info('shop_size={}'.format(len(shop_user_dist_list)))
             shop_user_dist_list[shop_id].sort()
             l = len(shop_user_dist_list[shop_id])
             if l > 10:
@@ -165,9 +167,11 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['objective'] = 'multi:softmax'
     # scale weight of positive examples
     param['eta'] = 0.1
-    param['max_depth'] = 4
+    param['max_depth'] = 3
     param['silent'] = 1
     param['min_child_weight'] = 3
+    param['subsample'] = 0.6
+    param['lambda'] = 0.5
     # param['nthread'] = 2
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
