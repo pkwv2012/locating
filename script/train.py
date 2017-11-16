@@ -62,7 +62,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             # filter (lng, lat) abnormal data
             if 'shop_id' in line:
                 dist = math.sqrt((lng - lng_lat[shop_id][0])**2 + (lat - lng_lat[shop_id][1])**2)
-                if dist > max_dist[shop_id]:
+                if max_dist and dist > max_dist[shop_id]:
                     continue
             indptr[mall_id].append(len(indices[mall_id]))
             row_id[mall_id].append(row_num)
@@ -85,7 +85,7 @@ def ProcessFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist
             indptr[key].append(len(indices[key]))
     return data, indices, indptr, row_id, label
 
-def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist):
+def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=None):
     '''
     get features if having pickle file else processing raw data
     :param filepath:
@@ -134,8 +134,10 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
         for shop_id in shop_user_dist_list:
             shop_user_dist_list[shop_id].sort()
             l = len(shop_user_dist_list[shop_id])
-            max_dist[shop_id] = shop_user_dist_list[shop_id][int(l * 0.9)] if l > 10 else \
-                shop_user_dist_list[shop_id][-1]
+            if l > 10:
+                max_dist[shop_id] = shop_user_dist_list[shop_id][int(l * 0.9)] * 2.0
+            else:
+                max_dist[shop_id] = shop_user_dist_list[shop_id][-1]
         return max_dist
     
 
@@ -143,10 +145,18 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     shop_info_file = os.path.join(data_dir, Config.shop_info_filename)
     lng_lat = GetShopLngLat(shop_info_file)
     max_dist = GetShopMaxDist(shop_info_file, lng_lat)
-    train_file = os.path.join(data_dir, Config.user_shop_filename)
+    train_file = os.path.join(data_dir, Config.train_filename)
     dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
+
+    validation_file = os.path.join(data_dir, Config.validation_filename)
+    dvalidation_dict, row_id = GetFeatures(validation_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+
+    total_train_file = os.path.join(data_dir, Config.user_shop_filename)
+    total_train_dict, row_id = GetFeatures(total_train_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+
     test_file = os.path.join(data_dir, Config.evaluation_filename)
-    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist)
+    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat)
+
     assert dtrain_dict.keys() == dtest_dict.keys()
 
     # setup parameters for xgboost
@@ -157,7 +167,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
     param['eta'] = 0.1
     param['max_depth'] = 4
     param['silent'] = 1
-    param['min_child_weight'] = 4
+    param['min_child_weight'] = 3
     # param['nthread'] = 2
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
@@ -169,8 +179,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
         early_stop_round = 10
         if Config.is_train:
             error_list = xgb.cv(param, dtrain_dict[key],
-                         num_boost_round=100,
-                         nfold=4,
+                         num_boost_round=200,
+                         nfold=3,  # some shop appear less
                          early_stopping_rounds=early_stop_round
                          )
             booster = xgb.train(param, dtrain_dict[key],

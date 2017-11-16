@@ -15,6 +15,9 @@ class Config(object):
     shop_info_filename = 'ccf_first_round_shop_info.csv'
     evaluation_filename = 'evaluation_public.csv'
 
+    train_filename = 'train.csv'
+    validation_filename = 'validation.csv'
+
     # train or predict
     is_train = True
     # if predict
