@@ -3,6 +3,7 @@
 import csv
 import lightgbm as lgb
 import math
+import numpy as np
 import os
 import pickle
 import sys
@@ -104,13 +105,15 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=Non
         SaveFeatrues(pickle_file, data, indices, indptr, row_id, label)
 
     dtrain_dict = {}
+    raw_csr_dict = {}
     for key in indptr.keys():
         csr = csr_matrix((data[key], indices[key], indptr[key]),
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key]) if model == 'XGBoost' else \
             lgb.Dataset(csr, label=label[key])
+        raw_csr_dict[key] = csr
         LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
-    return dtrain_dict, row_id
+    return dtrain_dict, row_id, raw_csr_dict
 
 def GetShopLngLat(shop_info_filepath):
     with open(shop_info_filepath, 'r') as fin:
@@ -143,6 +146,14 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
             else:
                 max_dist[shop_id] = shop_user_dist_list[shop_id][-1]
         return max_dist
+
+def Predict(booster, data, csr, model):
+    if model == 'XGboost':
+        predict = booster.predict(data)
+    else:
+        predict_prob = booster.predict(csr)
+        predict = np.argmax(predict_prob, axis=1)
+    return predict
     
 
 def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
@@ -159,16 +170,16 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
     lng_lat = GetShopLngLat(shop_info_file)
     train_file = os.path.join(data_dir, Config.train_filename)
     max_dist = GetShopMaxDist(train_file, lng_lat)
-    dtrain_dict, row_id = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist, model=model)
+    dtrain_dict, row_id, train_csr_dict = GetFeatures(train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist, model=model)
 
     validation_file = os.path.join(data_dir, Config.validation_filename)
-    dvalidation_dict, row_id = GetFeatures(validation_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
+    dvalidation_dict, row_id, validation_csr_dict = GetFeatures(validation_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     total_train_file = os.path.join(data_dir, Config.user_shop_filename)
-    total_train_dict, row_id = GetFeatures(total_train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
+    total_train_dict, row_id, total_train_csr_dict = GetFeatures(total_train_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     test_file = os.path.join(data_dir, Config.evaluation_filename)
-    dtest_dict, row_id = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
+    dtest_dict, row_id, test_csr_dict = GetFeatures(test_file, wifi_hashmap, mall_shop_hashmap, lng_lat, model=model)
 
     assert dtrain_dict.keys() == dtest_dict.keys()
 
@@ -194,7 +205,9 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             LOGGER.info(error_list)
             booster = gbm.train(param, dtrain_dict[key],
                                 num_boost_round=len(error_list))
-            validation_predict = booster.predict(dvalidation_dict[key])
+            validation_predict = Predict(booster, dvalidation_dict[key], validation_csr_dict[key], model)
+            # validation_predict = booster.predict(dvalidation_dict[key] if model == 'XGboost' else \
+            #        validation_csr_dict[key])
             correct_num = sum([lhs == rhs for lhs, rhs in
                             zip(dvalidation_dict[key].get_label(), validation_predict)])
             accuracy = correct_num / len(validation_predict)
@@ -211,8 +224,9 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             assert os.path.isfile(model_path)
             booster = gbm.Booster(model_file=model_path);
 
-        prediction = booster.predict(dtest_dict[key])
+        prediction = Predict(booster, dtest_dict[key], test_csr_dict[key], model)
         result[key] = []
+        LOGGER.info(prediction)
         for p in prediction:
             result[key].append(mall_shop_hashmap.GetShopId(key, int(p)))
     LOGGER.info('model={}||accuracy={}'.format(model, validation_correct / validation_sum))

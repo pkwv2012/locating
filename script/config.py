@@ -48,4 +48,5 @@ class Config(object):
         'learning_rate': 0.1,
         'max_depth': -1, # no limit?
         'min_data_in_leaf': 10,
+        'metric': 'multi_error',
     }
