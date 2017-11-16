@@ -145,7 +145,16 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
         return max_dist
     
 
-def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
+def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
+    '''
+    training part
+    :param data_dir:
+    :param wifi_hashmap:
+    :param mall_shop_hashmap:
+    :param param: parameters for GBM
+    :param model: XGboost or LightGBM
+    :return:
+    '''
     shop_info_file = os.path.join(data_dir, Config.shop_info_filename)
     lng_lat = GetShopLngLat(shop_info_file)
     max_dist = GetShopMaxDist(shop_info_file, lng_lat)
@@ -163,50 +172,39 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
 
     assert dtrain_dict.keys() == dtest_dict.keys()
 
-    # setup parameters for xgboost
-    param = {}
-    # use softmax multi-class classification
-    param['objective'] = 'multi:softmax'
-    # scale weight of positive examples
-    param['eta'] = 0.1
-    param['max_depth'] = 3
-    param['silent'] = 1
-    param['min_child_weight'] = 3
-    # subsample make accuracy decrese 0.07
-    # param['subsample'] = 0.6
-    param['lambda'] = 0.5
-    # param['nthread'] = 2
+    gbm = xgb if model == 'XGboost' else lgb
+
     result = defaultdict(list)
     time_suffix = datetime.now().strftime('%Y_%m_%d_%H_%M')
-    LOGGER.info(dtrain_dict.keys())
+    LOGGER.info(param)
     for key in dtrain_dict.keys():
         # if key not in Config.bad_accuracy_mall_list:
         #    continue
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         if Config.is_train:
-            error_list = xgb.cv(param, dtrain_dict[key],
+            error_list = gbm.cv(param, dtrain_dict[key],
                          num_boost_round=200,
                          nfold=3,  # some shop appear less
                          early_stopping_rounds=early_stop_round
                          )
             LOGGER.info(key)
             LOGGER.info(error_list)
-            booster = xgb.train(param, dtrain_dict[key],
+            booster = gbm.train(param, dtrain_dict[key],
                                 num_boost_round=len(error_list))
             validation_predict = booster.predict(dvalidation_dict[key])
             accuracy = sum([lhs == rhs for lhs, rhs in
                             zip(dvalidation_dict[key].get_label(), validation_predict)]) / len(validation_predict)
             LOGGER.info('mall_id={}||accuracy={}'.format(key, accuracy))
 
-            booster = xgb.train(param, total_train_dict[key],
+            booster = gbm.train(param, total_train_dict[key],
                                 num_boost_round=len(error_list))
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
             booster.save_model(model_path)
         else:
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, Config.selected_model_suffix))
             assert os.path.isfile(model_path)
-            booster = xgb.Booster(model_file=model_path);
+            booster = gbm.Booster(model_file=model_path);
 
         prediction = booster.predict(dtest_dict[key])
         result[key] = []
@@ -222,6 +220,12 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap):
             for i in range(len(result[key])):
                 fout.write('{},{}\n'.format(row_id[key][i], result[key][i]))
 
+def SelectModel(data_dir, wifi_hashmap, mall_shop_hashmap):
+
+    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
+
+    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.LGB_param, "LightGBM")
+
 
 if __name__ == '__main__':
     LOGGER.info('start_time={}'.format(datetime.now()))
@@ -229,7 +233,8 @@ if __name__ == '__main__':
     wifi_hashmap = MallWifiMap(data_dir)
     mall_shop_hashmap = MallShopMap(data_dir)
     data = defaultdict(list)
-    Train(data_dir, wifi_hashmap, mall_shop_hashmap)
+    SelectModel(data_dir, wifi_hashmap, mall_shop_hashmap)
+    # Train(data_dir, wifi_hashmap, mall_shop_hashmap)
     LOGGER.info('end_time={}'.format(datetime.now()))
 
 
