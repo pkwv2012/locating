@@ -12,6 +12,8 @@ import xgboost as xgb
 from collections import defaultdict
 from datetime import datetime
 from scipy.sparse import csr_matrix
+from sklearn import metrics
+from sklearn.model_selection import GridSearchCV
 
 from config import Config
 from logger import LOGGER
@@ -111,7 +113,7 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=Non
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
         dtrain_dict[key] = xgb.DMatrix(csr, label=label[key]) if model == 'XGboost' else \
             lgb.Dataset(csr, label=label[key])
-        raw_csr_dict[key] = csr
+        raw_csr_dict[key] = (csr, label[key])
         LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
     return dtrain_dict, row_id, raw_csr_dict
 
@@ -137,8 +139,8 @@ def GetShopMaxDist(shop_info_filepath, lng_lat):
                           (lat - lng_lat[shop_id][1])**2)
             )
         max_dist = defaultdict(float)
+        LOGGER.info('shop_size={}'.format([(k, len(v)) for k, v in shop_user_dist_list.items()]))
         for shop_id in shop_user_dist_list:
-            LOGGER.info('shop_size={}'.format(len(shop_user_dist_list[shop_id])))
             shop_user_dist_list[shop_id].sort()
             l = len(shop_user_dist_list[shop_id])
             if l > 10:
@@ -154,7 +156,68 @@ def Predict(booster, data, csr, model):
         predict_prob = booster.predict(csr)
         predict = np.argmax(predict_prob, axis=1)
     return predict
-    
+
+def GridSearchUsingCV(gbm, train_data, param, default_param):
+    enum_param = [{}]
+    for k, v_list in param.items():
+        l = len(enum_param)
+        for v in v_list:
+            for i in range(l):
+                enum_param.append(enum_param[i].copy())
+                enum_param[-1][k] = v
+        enum_param = enum_param[l: ]
+    result = []
+    for each_param in enum_param:
+        merged_param = default_param.copy()
+        for k, v in each_param.items():
+            merged_param[k] = v;
+        error_list = gbm.cv(merged_param, train_data,
+                            nfold=3,
+                            metrics='multi_error')
+        print(error_list)
+        print(type(error_list))
+        result.append(error_list['multi_error-mean'][-1])
+    min_index = np.argmin(result)
+    return enum_param[min_index]
+
+def LightGBMGridSearch(train_data, num_class):
+    default_param = {
+        'num_boost_round': 300,
+        'early_stopping_rounds': 10,
+        'num_class': num_class,
+    }
+    main_grid = {
+        'objective': ['multiclass', 'multiclassova'],
+        'num_leaves': [i for i in range(5, 50, 8)],
+    }
+    gbm_param = {}
+    selected = GridSearchUsingCV(lgb, train_data, main_grid, default_param)
+    default_param = {**default_param, **selected}
+    gbm_param = {**gbm_param, **selected}
+
+    min_child_sample_grid = {
+        'min_child_samples': [i for i in range(2, 20, 3)],
+    }
+    selected = GridSearchUsingCV(lgb, train_data, min_child_sample_grid, default_param)
+    default_param = {**default_param, **selected}
+    gbm_param = {**gbm_param, **selected}
+
+    max_depth_grid = {
+        'max_depth': [-1] + [i for i in range(2, 8, 1)],
+    }
+    selected = GridSearchUsingCV(lgb, train_data, max_depth_grid, default_param)
+    default_param = {**default_param, **selected}
+    gbm_param = {**gbm_param, **selected}
+
+    learning_rate_grid = {
+        'learning_rate': [0.01, 0.05, 0.1, 0.15,
+                           lambda iter: 0.1 * (0.99 ** iter)],
+    }
+    selected = GridSearchUsingCV(lgb, train_data, learning_rate_grid, default_param)
+    default_param = {**default_param, **selected}
+    gbm_param = {**gbm_param, **selected}
+    return gbm_param
+
 
 def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
     '''
@@ -196,14 +259,19 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         if Config.is_train:
-            error_list = gbm.cv(param, dtrain_dict[key],
-                         num_boost_round=200,
+            if model == 'XGboost':
+                pass
+            else:
+                gbm_param = LightGBMGridSearch(dtrain_dict[key], param['num_class'])
+                LOGGER.info('mall_id={}||best_param={}'.format(key, gbm_param))
+            error_list = gbm.cv(gbm_param, dtrain_dict[key],
+                         num_boost_round=300,
                          nfold=3,  # some shop appear less
                          early_stopping_rounds=early_stop_round
                          )
             LOGGER.info(key)
             LOGGER.info(error_list)
-            booster = gbm.train(param, dtrain_dict[key],
+            booster = gbm.train(gbm_param, dtrain_dict[key],
                                 num_boost_round=len(error_list))
             validation_predict = Predict(booster, dvalidation_dict[key], validation_csr_dict[key], model)
             # validation_predict = booster.predict(dvalidation_dict[key] if model == 'XGboost' else \
@@ -215,7 +283,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             validation_correct += correct_num
             validation_sum += len(validation_predict)
 
-            booster = gbm.train(param, total_train_dict[key],
+            booster = gbm.train(gbm_param, total_train_dict[key],
                                 num_boost_round=len(error_list))
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
             booster.save_model(model_path)
@@ -247,7 +315,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
 
 def SelectModel(data_dir, wifi_hashmap, mall_shop_hashmap):
 
-    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
+    # Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
     Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.LGB_param, "LightGBM")
 
 
