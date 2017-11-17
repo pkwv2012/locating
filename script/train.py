@@ -229,7 +229,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
         LOGGER.info(prediction)
         for p in prediction:
             result[key].append(mall_shop_hashmap.GetShopId(key, int(p)))
-    LOGGER.info('model={}||accuracy={}'.format(model, validation_correct / validation_sum))
+    LOGGER.info('param={}'.format(param))
+    LOGGER.info('model={}||validation_accuracy={}'.format(model, validation_correct / validation_sum))
     result_filepath = os.path.join(
         data_dir,
         'predict_{}.csv'.format(time_suffix))
