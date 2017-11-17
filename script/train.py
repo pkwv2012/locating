@@ -109,7 +109,7 @@ def GetFeatures(filepath, wifi_hashmap, mall_shop_hashmap, lng_lat, max_dist=Non
     for key in indptr.keys():
         csr = csr_matrix((data[key], indices[key], indptr[key]),
                          shape=(len(row_id[key]), wifi_hashmap.GetWifiInMall(key) + 2))
-        dtrain_dict[key] = xgb.DMatrix(csr, label=label[key]) if model == 'XGBoost' else \
+        dtrain_dict[key] = xgb.DMatrix(csr, label=label[key]) if model == 'XGboost' else \
             lgb.Dataset(csr, label=label[key])
         raw_csr_dict[key] = csr
         LOGGER.info('mall_id={}||shape={}'.format(key, csr.shape))
@@ -242,8 +242,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
 
 def SelectModel(data_dir, wifi_hashmap, mall_shop_hashmap):
 
-    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.LGB_param, "LightGBM")
     Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.XGB_param, "XGboost")
+    Train(data_dir, wifi_hashmap, mall_shop_hashmap, Config.LGB_param, "LightGBM")
 
 
 if __name__ == '__main__':
