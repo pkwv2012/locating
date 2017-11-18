@@ -42,11 +42,10 @@ class Config(object):
 
     # set parameters for LightGBM
     LGB_param = {
-        'application': 'multiclass', # 'multiclassova'
+        'application': 'multiclassova', # 'multiclassova'
         'boosting': 'gbdt', # 'dart'
         'num_iterations': 300,
-        'learning_rate': 0.1,
+        'learning_rate': 0.01,
         'max_depth': -1, # no limit?
-        'min_data_in_leaf': 10,
-        'metric': 'multi_error',
+        'min_child_samples': 14,
     }

@@ -262,12 +262,13 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
         param['num_class'] = mall_shop_hashmap.GetShopNumInMall(key)
         early_stop_round = 10
         if Config.is_train:
-            if model == 'XGboost':
-                pass
-            else:
-                gbm_param = LightGBMGridSearch(dtrain_dict[key], param['num_class'])
-                LOGGER.info('mall_id={}||best_param={}'.format(key, gbm_param))
-            gbm_param['num_class'] = param['num_class']
+            # if model == 'XGboost':
+            #     pass
+            # else:
+            #     gbm_param = LightGBMGridSearch(dtrain_dict[key], param['num_class'])
+            #     LOGGER.info('mall_id={}||best_param={}'.format(key, gbm_param))
+            # gbm_param['num_class'] = param['num_class']
+            gbm_param = param
             error_list = gbm.cv(gbm_param, dtrain_dict[key],
                          num_boost_round=300,
                          nfold=3,  # some shop appear less
@@ -277,7 +278,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             LOGGER.info(key)
             LOGGER.info(error_list)
             booster = gbm.train(gbm_param, dtrain_dict[key],
-                                num_boost_round=len(error_list))
+                                num_boost_round=len(error_list),
+                                learning_rates=lambda iter: 0.05 * (0.99 ** iter))
             validation_predict = Predict(booster, dvalidation_dict[key], validation_csr_dict[key][0], model)
             # validation_predict = booster.predict(dvalidation_dict[key] if model == 'XGboost' else \
             #        validation_csr_dict[key])
@@ -289,7 +291,8 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             validation_sum += len(validation_predict)
 
             booster = gbm.train(gbm_param, total_train_dict[key],
-                                num_boost_round=len(error_list))
+                                num_boost_round=len(error_list),
+                                learning_rates=lambda  iter: 0.05 * (0.99 ** iter))
             model_path = os.path.join(data_dir, 'model_{}_{}'.format(key, time_suffix))
             booster.save_model(model_path)
         else:
