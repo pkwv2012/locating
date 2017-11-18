@@ -177,7 +177,9 @@ def GridSearchUsingCV(gbm, train_data, param, default_param):
         print(error_list)
         print(type(error_list))
         result.append(error_list['multi_error-mean'][-1])
+    LOGGER.info(['param={}||result={}'.format(p, r) for p, r in zip(enum_param, result)])
     min_index = np.argmin(result)
+    LOGGER.info('argmin_index={}'.format(min_index))
     return enum_param[min_index]
 
 def LightGBMGridSearch(train_data, num_class):
