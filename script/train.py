@@ -210,12 +210,13 @@ def LightGBMGridSearch(train_data, num_class):
     gbm_param = {**gbm_param, **selected}
 
     learning_rate_grid = {
-        'learning_rate': [0.01, 0.05, 0.1, 0.15,
-                           lambda iter: 0.1 * (0.99 ** iter)],
+        'learning_rates': [0.01, 0.05, 0.1, 0.15]
+                           #lambda iter: 0.1 * (0.99 ** iter)],
     }
     selected = GridSearchUsingCV(lgb, train_data, learning_rate_grid, default_param)
     default_param = {**default_param, **selected}
     gbm_param = {**gbm_param, **selected}
+    gbm_param = {**default_param, **gbm_param}
     return gbm_param
 
 
@@ -264,16 +265,18 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             else:
                 gbm_param = LightGBMGridSearch(dtrain_dict[key], param['num_class'])
                 LOGGER.info('mall_id={}||best_param={}'.format(key, gbm_param))
+            gbm_param['num_class'] = param['num_class']
             error_list = gbm.cv(gbm_param, dtrain_dict[key],
                          num_boost_round=300,
                          nfold=3,  # some shop appear less
-                         early_stopping_rounds=early_stop_round
+                         early_stopping_rounds=early_stop_round,
+                         metrics='multi_error'
                          )
             LOGGER.info(key)
             LOGGER.info(error_list)
             booster = gbm.train(gbm_param, dtrain_dict[key],
                                 num_boost_round=len(error_list))
-            validation_predict = Predict(booster, dvalidation_dict[key], validation_csr_dict[key], model)
+            validation_predict = Predict(booster, dvalidation_dict[key], validation_csr_dict[key][0], model)
             # validation_predict = booster.predict(dvalidation_dict[key] if model == 'XGboost' else \
             #        validation_csr_dict[key])
             correct_num = sum([lhs == rhs for lhs, rhs in
@@ -292,7 +295,7 @@ def Train(data_dir, wifi_hashmap, mall_shop_hashmap, param, model='XGboost'):
             assert os.path.isfile(model_path)
             booster = gbm.Booster(model_file=model_path);
 
-        prediction = Predict(booster, dtest_dict[key], test_csr_dict[key], model)
+        prediction = Predict(booster, dtest_dict[key], test_csr_dict[key][0], model)
         result[key] = []
         LOGGER.info(prediction)
         for p in prediction:
